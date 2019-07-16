@@ -9,6 +9,7 @@ from .elmo_connector import Elmo
 from .fairseq_connector import Fairseq
 from .gpt_connector import GPT
 from .transformerxl_connector import TransformerXL
+from .xlm_connector import XLM
 
 
 def build_model_by_name(lm, args, verbose=True):
@@ -23,6 +24,7 @@ def build_model_by_name(lm, args, verbose=True):
         bert=Bert,
         gpt=GPT,
         transformerxl=TransformerXL,
+        xlm=XLM
     )
     if lm not in MODEL_NAME_TO_CLASS:
         raise ValueError("Unrecognized Language Model: %s." % lm)

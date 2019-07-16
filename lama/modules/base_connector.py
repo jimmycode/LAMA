@@ -22,20 +22,9 @@ OPENAI_UNK = "<unk>"
 OPENAI_EOS = "<eos>"
 
 SPECIAL_SYMBOLS = [
-    MASK,
-    BERT_UNK,
-    BERT_CLS,
-    BERT_SEP,
-    BERT_PAD,
-    ELMO_UNK,
-    ELMO_START_SENTENCE,
-    ELMO_END_SENTENCE,
-    FAIRSEQ_UNK,
-    FAIRSEQ_EOS,
-    FAIRSEQ_CLIFF,
-    OPENAI_UNK,
-    OPENAI_EOS
-    ]
+    MASK, BERT_UNK, BERT_CLS, BERT_SEP, BERT_PAD, ELMO_UNK, ELMO_START_SENTENCE, ELMO_END_SENTENCE,
+    FAIRSEQ_UNK, FAIRSEQ_EOS, FAIRSEQ_CLIFF, OPENAI_UNK, OPENAI_EOS
+]
 
 SPACE_NORMALIZER = re.compile(r"\s+")
 
@@ -52,7 +41,7 @@ def default_tokenizer(line):
 
     line = SPACE_NORMALIZER.sub(" ", line)
     line = line.strip()
-    line = line.replace(MASK, " "+str(MASK)+" ") #make sure MASK is correctly splitted
+    line = line.replace(MASK, " " + str(MASK) + " ")  #make sure MASK is correctly splitted
 
     # fix tokenization for parentheses
     line = line.replace('(', " ( ")
@@ -121,18 +110,19 @@ class Base_Connector():
         return indices, index_list
 
     def filter_logprobs(self, log_probs, indices):
-        new_log_probs = log_probs.index_select(dim=2 , index=indices)
+        new_log_probs = log_probs.index_select(dim=2, index=indices)
         return new_log_probs
 
     def get_id(self, string):
         raise NotImplementedError()
 
     def get_generation(self, sentences, logger=None):
-        [log_probs], [token_ids], [masked_indices] = self.get_batch_generation(
-            [sentences], logger=logger, try_cuda=False)
+        [log_probs], [token_ids], [masked_indices] = self.get_batch_generation([sentences],
+                                                                               logger=logger,
+                                                                               try_cuda=False)
         return log_probs, token_ids, masked_indices
 
-    def get_batch_generation(self, sentences_list, logger= None, try_cuda=True):
+    def get_batch_generation(self, sentences_list, logger=None, try_cuda=True):
         raise NotImplementedError()
 
     def get_contextual_embeddings(self, sentences):
