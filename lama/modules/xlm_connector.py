@@ -8,6 +8,7 @@ from .xlm.utils import AttrDict
 from .xlm.data.dictionary import Dictionary, BOS_WORD, EOS_WORD, PAD_WORD, UNK_WORD, MASK_WORD
 from .xlm.model.transformer import TransformerModel
 
+import os
 import numpy as np
 from typing import List
 from lama.modules.base_connector import *
@@ -67,9 +68,9 @@ class XLM(Base_Connector):
         params = AttrDict(reloaded['params'])
         print("[XLM] Supported languages: %s" % ", ".join(params.lang2id.keys()))
 
-        if params.asm == True:
-            params.asm = False
-            print("Warning: params.asm flag is True, changed to False.")
+        # if params.asm == True:
+        #     params.asm = False
+        #     print("Warning: params.asm flag is True, changed to False.")
 
         # build dictionary / update parameters
         self.dico = Dictionary(reloaded['dico_id2word'], reloaded['dico_word2id'],
@@ -123,7 +124,7 @@ class XLM(Base_Connector):
 
     def get_id(self, string):
         tokenized_text = self._tokenize(string)
-        indexed_tokens = [self.dico.index(w) for w in tokenized_text.split()]
+        indexed_tokens = [self.dico.index(w) for w in tokenized_text]
 
         # tokenized_text = self.tokenizer.tokenize(string)
         # indexed_string = self.tokenizer.convert_tokens_to_ids(tokenized_text)
