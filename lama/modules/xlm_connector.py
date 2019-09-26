@@ -12,6 +12,7 @@ import os
 import numpy as np
 from typing import List
 from lama.modules.base_connector import *
+import tempfile
 
 FASTBPE_PATH = '/private/home/guismay/tools/fastBPE/fast'
 TOKENIZER_PATH = '/private/home/guismay/tools/mosesdecoder/scripts/tokenizer/tokenizer.perl'
@@ -20,36 +21,57 @@ BPE_CODES = '/checkpoint/guismay/ccclean/60000/codes.60000'
 
 
 def apply_bpe(txt):
-    temp1_path = '/tmp/xxx1'
-    temp2_path = '/tmp/xxx2'
-    with open(temp1_path, 'w', encoding='utf-8') as f:
+    _, temppath_1 = tempfile.mkstemp(prefix='xlm_')
+    _, temppath_2 = tempfile.mkstemp(prefix='xlm_')
+
+    with open(temppath_1, 'w', encoding='utf-8') as f:
         f.write('\n'.join(txt) + '\n')
-    command = '%s applybpe %s %s %s' % (FASTBPE_PATH, temp2_path, temp1_path, BPE_CODES)
-    os.system(command)
-    with open(temp2_path, 'r', encoding='utf-8') as f:
-        return [line.rstrip() for line in f]
+
+    command = '%s applybpe %s %s %s' % (FASTBPE_PATH, temppath_2, temppath_1, BPE_CODES)
+    os.system(command + ' >/dev/null 2>&1')
+
+    with open(temppath_2, 'r', encoding='utf-8') as f:
+        output = [line.rstrip() for line in f]
+
+    os.remove(temppath_1)
+    os.remove(temppath_2)
+    return output
 
 
 def tokenize(txt):
-    temp1_path = '/tmp/xxx1'
-    temp2_path = '/tmp/xxx2'
-    with open(temp1_path, 'w', encoding='utf-8') as f:
+    _, temppath_1 = tempfile.mkstemp(prefix='xlm_')
+    _, temppath_2 = tempfile.mkstemp(prefix='xlm_')
+
+    with open(temppath_1, 'w', encoding='utf-8') as f:
         f.write('\n'.join(txt) + '\n')
-    command = 'cat %s | %s -l en -no-escape > %s' % (temp1_path, TOKENIZER_PATH, temp2_path)
+
+    command = 'cat %s | %s -l en -no-escape > %s' % (temppath_1, TOKENIZER_PATH, temppath_2)
     os.system(command)
-    with open(temp2_path, 'r', encoding='utf-8') as f:
-        return [line.rstrip() for line in f]
+
+    with open(temppath_2, 'r', encoding='utf-8') as f:
+        output = [line.rstrip() for line in f]
+
+    os.remove(temppath_1)
+    os.remove(temppath_2)
+    return output
 
 
 def detokenize(txt):
-    temp1_path = '/tmp/xxx1'
-    temp2_path = '/tmp/xxx2'
-    with open(temp1_path, 'w', encoding='utf-8') as f:
+    _, temppath_1 = tempfile.mkstemp(prefix='xlm_')
+    _, temppath_2 = tempfile.mkstemp(prefix='xlm_')
+
+    with open(temppath_1, 'w', encoding='utf-8') as f:
         f.write('\n'.join(txt) + '\n')
-    command = 'cat %s | %s -l en > %s' % (temp1_path, DETOKENIZER_PATH, temp2_path)
+
+    command = 'cat %s | %s -l en > %s' % (temppath_1, DETOKENIZER_PATH, temppath_2)
     os.system(command)
-    with open(temp2_path, 'r', encoding='utf-8') as f:
-        return [line.rstrip() for line in f]
+
+    with open(temppath_2, 'r', encoding='utf-8') as f:
+        output = [line.rstrip() for line in f]
+
+    os.remove(temppath_1)
+    os.remove(temppath_2)
+    return output
 
 
 class XLM(Base_Connector):
@@ -132,9 +154,14 @@ class XLM(Base_Connector):
         return indexed_tokens
 
     def _tokenize(self, text: str) -> List[str]:
+        if str == '':
+            return []
         tokenized_text = tokenize([text])
-        bpe_text = apply_bpe(tokenized_text)[0]
-        return bpe_text.split()
+        bpe_text = apply_bpe(tokenized_text)
+        if len(bpe_text) == 0:
+            print("Warning: empty tokenization output for '%s'" % text)
+            return []
+        return bpe_text[0].split()
 
     def __get_input_tensors(self, sentence_list):
         """Concatenates, tokenize and converts a sentences to model inputs.
@@ -157,11 +184,14 @@ class XLM(Base_Connector):
         for sentence in sentence_list:
             tokenized_text.append(EOS_WORD)  # prepend </s> symbol
 
-            sentence = sentence.replace('[MASK]', self.unk_symbol)
-            cur_tokens = self._tokenize(sentence)
-            mask_index = cur_tokens.index(
-                self.unk_symbol) + len(tokenized_text) - 1  # left-shift for uni-directional LM
-            assert mask_index >= 0
+            cur_tokens = []
+            for idx, part in enumerate(sentence.split('[MASK]')):
+                if idx > 0:
+                    cur_tokens.append(self.unk_symbol)
+                cur_tokens += self._tokenize(part)
+
+            mask_index = cur_tokens.index(self.unk_symbol) + len(tokenized_text) - 1  # left-shift for uni-directional LM
+            assert mask_index >= 0, '[MASK] cannot be the first token.'
             masked_indices.append(mask_index)
             tokenized_text += cur_tokens
 
@@ -200,7 +230,7 @@ class XLM(Base_Connector):
                                     lengths=seq_lens_tensor.to(self._model_device),
                                     langs=None,
                                     causal=True,
-                                    cache={'slen': 0})
+                                    cache={'slen': 0}).contiguous()
             assert hidden.dim() == 3
             hidden_sizes = hidden.size()
 
